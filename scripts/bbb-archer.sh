@@ -259,7 +259,8 @@ fi
 # Device format
 #
 
-# Unmount all mounted partitions belinging to the specified device
+# Unmount all mounted partitions belonging to the specified device
+echo "Unmounting partitions..."
 for partition in $(fdisk -l $device|awk '/^\/dev\// {print $1}')
 do
   if [[ $(mount | grep $partition) != "" ]]; then
@@ -300,6 +301,7 @@ if [[ $mmc -ne 1 ]]; then
 fi
 
 # Identify the newly created partitions
+echo "Looking for expected partitions..."
 part1=$(fdisk -l $device|grep -m 1 W95|awk '/^\/dev\// {print $1}')
 part2=$(fdisk -l $device|grep -m 1 Linux|awk '/^\/dev\// {print $1}')
 
@@ -352,34 +354,34 @@ if [ ! -f $rootfs ]; then
   wget http://archlinuxarm.org/os/ArchLinuxARM-am33x-latest.tar.gz --directory-prefix="$tmp"
   sleep 1
   
-  rootfs="${tmp}/bone/ArchLinuxARM-am33x-latest.tar.gz"
+  rootfs="${tmp}/ArchLinuxARM-am33x-latest.tar.gz"
 fi
 
 echo "Using root filesystem tarball ${rootfs}"
 
 # Create tmp directories to mount "boot" and "rootfs"
-mkdir $tmp/bone/{boot,root}
+mkdir $tmp/{boot,root}
 
 # Mount the partitions to the tmp dirs
-mount $part1 "${tmp}/bone/boot"
-mount $part2 "${tmp}/bone/root"
+mount $part1 "${tmp}/boot"
+mount $part2 "${tmp}/root"
 
 # Extract the tarballs directly to the mounted partitions
 echo "Extracting files to disk..."
-tar -xvf $bootloader --no-same-owner -C "${tmp}/bone/boot"
-tar -xf $rootfs -C "${tmp}/bone/root"
+tar -xvf $bootloader --no-same-owner -C "${tmp}/boot"
+tar -xf $rootfs -C "${tmp}/root"
 
 # Copy the boot image to the boot partition
 echo "Copying Boot Image..."
-cp "${tmp}/bone/root/boot/zImage" "${tmp}/bone/boot"
+cp "${tmp}/root/boot/zImage" "${tmp}/boot"
 
 # Make sure the write buffer has been commited to disk
 echo "Synching..."
 sync ; sleep 1 ; sync
 
 # Unmount the partitions
-umount "${tmp}/bone/boot"
-umount "${tmp}/bone/root"
+umount "${tmp}/boot"
+umount "${tmp}/root"
 
 # Sweep the floors
 if [[ $keep -eq 0 ]]; then
