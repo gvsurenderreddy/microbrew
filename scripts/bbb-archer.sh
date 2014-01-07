@@ -2,31 +2,41 @@
 
 # Copyright (c) 2014 Ian White <ian@impressiver.com>
 # License: [MIT](http://opensource.org/licenses/MIT)
+#
+# Create a bootable SD Card (or eMMC rom) containing the latest Arch Linux base.
+# Intended to be used *on* a Beaglebone Black, while running either Angstrom or
+# Arch Linux (and possibly other distros), it will create an SD card that can
+# then be used to boot and flash (using this same script) the eMMC.
+# 
+# This script is based on several scripts found online, and lots of trial and
+# error.
+
+VERSION='0.0.1'
 
 # Define the usage text.
 USAGE=$( cat <<EOF
-Usage: `basename $0` [-hvm] [-d <device>]\n
--h|--help:
-\tDisplays this help.
--v|--version
-\tDisplays the current version of this script.
--d|--device
-\tSets the name of the device to which Arch Linux 
-\tshould be flashed to (/dev/sdXpY).
--m|--mmc
-\tParameter should be used to flash Arch Linux 
-\tto a Beaglebone Black eMMC rom.
--z|--zero
-\tZero out the disk before creating partition map
-\t(ignored when flashing eMMC rom).
+Usage: `basename $0` [-hvezk] [-d <device>]\n
+-h|--help\tDisplays this helpful message
+-v|--version\tDisplays the installed version of this script
+
+-d|--device\tDevice path of the target disk where Arch Linux will be
+\t\tinstalled (/dev/...)
+
+-e|--emmc\tFlash the internal eMMC rom
+-z|--wipe\tOverwrite all data on the disk before creating partitions
+\t\t(only use this if you know what you are doing)
+
+-k|--keep\tKeep temp files around after successful install
+\t\t(useful for reusing previously downloaded tarballs)
 EOF
 )
 
 MMC_REBOOT=$( cat <<EOF
-\nYour Beaglebone eMMC is ready to boot Arch. Follow these instructions now:\n
-\t* Enter the command 'poweroff' and hit enter\n
-\t* Wait for the LED lights on the Beaglebone to stop blinking\n
-\t* Remove power (5v or USB) and micro SD card\n
+\nArch Linux has been installed on the eMMC. Follow these reboot instructions:\n
+\t* Type 'poweroff' in the terminal and hit enter\n
+\t* Wait for all LED lights on the device to stop blinking\n
+\t* Remove power (5v and/or USB)\n
+\t* Remove the micro SD card\n
 \t* Reapply power (do not hold down the user button)
 EOF
 )
@@ -34,11 +44,18 @@ EOF
 # Path to this script file
 SCRIPT_PATH="`dirname \"$0\"`"
 
+# Path to tmp dir
+TMP_PATH='/tmp/bone'
+
 # All users with $UID 0 have root privileges.
 ROOT_UID=0
 
 # Just one single user is called root.
 ROOT_NAME="root"
+
+#
+# Functions
+#
 
 # Definition of error functions.
 function info()
@@ -58,7 +75,7 @@ function error()
    exit 1
 }
 
-function yesno()
+function confirm()
 {
    local ans
    local ok=0
@@ -117,124 +134,10 @@ function yesno()
    [[ "$ans" = "y" || "$ans" == "yes" ]]
 }
 
-function cleanUp() 
+function partition()
 {
-  echo "Cleaning up ..."
-  rm -r /tmp/bone
-}
-
-# Check if user has root privileges.
-if [[ $EUID -ne $ROOT_UID ]]; then
-   error "This script must be run as root!"
-fi
-
-# Check if user is root and does not use sudoer privileges.
-if [[ "${SUDO_USER:-$(whoami)}" != "$ROOT_NAME" ]]; then
-   error "This script must be run as root, not as sudo user!"
-fi
-
-# Setup script vars.
-devices=$(cat /proc/partitions|awk '/^ / {print "/dev/"$4}')
-device=""
-mmc=0
-zero=0
-bootloader=""
-rootfs=""
-bootlabel="boot"
-rootlabel="rootfs"
-
-# Fetch command line options.
-while [[ "$1" ]]
-do
-   case "$1" in
-      --help|-h)
-         info "$USAGE"
-         ;;
-      --version|-v)
-         info "`basename $0` version 1.0"
-         ;;
-      --device|-d)
-         shift
-         device=$1
-         
-         if [[ ! "$device" ]]; then 
-            error "Missing device name!\n\n$USAGE"
-         fi
-
-         device=$(tr '[:upper:]' '[:lower:]' <<< $device)
-         
-         if [[ ! -b $device ]]; then
-            error "Device $device is not a block device!\n\n" \
-              "\rThe following devices are available:\n" \
-              "\r$devices\n"
-         fi
-         
-         shift
-         ;;
-      --mmc|-m)
-         mmc=1
-         shift
-         ;;
-      --zero|-z)
-         zero=1
-         shift
-         ;;
-      -*)
-         error "Unrecognized option: $1\n\n$USAGE"
-         ;;
-      *)
-         break
-         ;;
-   esac
-done
-
-if [[ ! "$device" ]]; then 
-   error "Missing device name!\n\n$USAGE"
-fi
-
-if ! command -v fdisk >/dev/null 2>&1 ; then
-   error "fdisk required, but not installed. Aborting."
-fi
-
-if ! yesno --default no "This will destroy all existing data. Are you sure you want to wipe $device (default no) ? "; then
-   info "Aborting."
-fi
-
-# Unmount all partitions in /dev/sdXpY.
-for partition in $(fdisk -l $device|awk '/^\/dev\// {print $1}')
-do
-  if [[ $(mount | grep $partition) != "" ]]; then
-     echo "Unmounting partition ${device}p${partition} ..."
-     umount "${partition}"
-  fi
-done
-
-# Make eMMC partition labels distinct
-if [[ $mmc -eq 1 ]]; then
-  bootlabel="mmcboot"
-  rootlabel="mmcrootfs"
-fi
-
-# Create a temporary directory within /tmp.
-mkdir -p /tmp/bone
-
-# Reformat disk if the destination is not eMMC (which should be formatted).
-if [[ $mmc -ne 1 ]]; then
-  # Zero out the disk. Because of how NAND works, it's better to write a bunch
-  # of 1's instead of 0's to wipe the disk.
-  if [[ $zero -eq 1 ]]; then
-    echo "\"Zeroing\" the entire disk ..."
-    # dd if=/dev/zero of=$device
-    # tr '\000' '\377' < /dev/zero > $device
-    tr "\000" "\377" < /dev/zero | dd bs=16M of=$device
-  else
-    echo "\"Zeroing\" first 1M of the disk ..."
-    # dd if=/dev/zero of=$device bs=1024 count=1024
-    tr "\000" "\377" < /dev/zero | dd bs=1024 count=1024 of=$device
-  fi
-
-  echo "Partitioning ${device} ..."
-  fdisk $device << EOF
+  echo "Partitioning '$*'..."
+  fdisk $* <<EOF
 o
 p
 n
@@ -255,90 +158,238 @@ e
 p
 w
 EOF
-
+  
   sleep 1
+}
+
+function cleanUp() 
+{
+  echo "Cleaning up..."
+  rm -r $tmp
+}
+
+#
+# Config
+#
+
+# Check if user has root privileges.
+if [[ $EUID -ne $ROOT_UID ]]; then
+   error "This script must be run as root!"
 fi
 
-# Grab the names of the partitions we need.
+# Check if user is root and does not use sudoer privileges.
+if [[ "${SUDO_USER:-$(whoami)}" != "$ROOT_NAME" ]]; then
+   error "This script must be run as root (not via sudo)"
+fi
+
+# Setup script vars.
+tmp=$TMP_PATH
+devices=$(cat /proc/partitions|awk '/^ / {print "/dev/"$4}')
+device=""
+mmc=0
+zero=0
+bootloader=""
+rootfs=""
+bootlabel="boot"
+rootlabel="rootfs"
+keep=0
+
+# Fetch command line options.
+while [[ "$1" ]]
+do
+   case "$1" in
+      --help|-h)
+         info "$USAGE"
+         ;;
+      --version|-v)
+         info "`basename $0` version $VERSION"
+         ;;
+      --device|-d)
+         shift
+         device=$1
+         
+         if [[ ! "$device" ]]; then 
+            error "Device path not specified.\n\n$USAGE"
+         fi
+
+         device=$(tr '[:upper:]' '[:lower:]' <<< $device)
+         
+         if [[ ! -b $device ]]; then
+            error "Invalid device '$device'.\n\n" \
+              "\rThe following devices are available:\n" \
+              "\r$devices\n"
+         fi
+         
+         shift
+         ;;
+      --emmc|--mmc|-m)
+         mmc=1
+         shift
+         ;;
+      --wipe|-z)
+         zero=1
+         shift
+         ;;
+      --keep|-k)
+         keep=1
+         shift
+         ;;
+      -*)
+         error "Unrecognized option: $1\n\n$USAGE"
+         ;;
+      *)
+         break
+         ;;
+   esac
+done
+
+if [[ ! "$device" ]]; then 
+   error "No device specified\n\n$USAGE"
+fi
+
+if ! command -v fdisk >/dev/null 2>&1 ; then
+   error "'fdisk' is required, but could not be found. Aborting."
+fi
+
+if ! confirm --default no "This will destroy all existing data on '$device'. Are you sure you want to continue? (default no) "; then
+   info "Aborting."
+fi
+
+#
+# Device format
+#
+
+# Unmount all mounted partitions belinging to the specified device
+for partition in $(fdisk -l $device|awk '/^\/dev\// {print $1}')
+do
+  if [[ $(mount | grep $partition) != "" ]]; then
+     echo "Unmounting partition '${device}p${partition}'..."
+     umount "${partition}"
+  fi
+done
+
+# Make eMMC partition labels distinct
+if [[ $mmc -eq 1 ]]; then
+  bootlabel="mmcboot"
+  rootlabel="mmcrootfs"
+fi
+
+# Create a temp directory to work with
+mkdir -p $tmp
+
+# Reformat if the destination is *not* the eMMC
+# (eMMC should already be properly formatted)
+if [[ $mmc -ne 1 ]]; then
+  # Zero out the disk using ones. Ones (not zeros) are considered free space by
+  # NAND controllers
+  if [[ $zero -eq 1 ]]; then
+    # TODO: (IW) Use device preferred erase block size:
+    # `cat /sys/block/mmcblk0/device/preferred_erase_size`
+    echo "Wiping the entire disk..."
+    tr "\000" "\377" < /dev/zero | dd bs=4M of=$device
+  fi
+
+  echo "Wiping first 1M of the disk..."
+  tr "\000" "\377" < /dev/zero | dd bs=1024 count=1024 of=$device
+
+  # Make sure the disk is done writing
+  sync ; sleep 1 ; sync
+
+  # Repartition the disk
+  partition $device
+fi
+
+# Identify the newly created partitions
 part1=$(fdisk -l $device|grep -m 1 W95|awk '/^\/dev\// {print $1}')
 part2=$(fdisk -l $device|grep -m 1 Linux|awk '/^\/dev\// {print $1}')
 
-# Create the fat16 filesystem at the first partition ...
-echo "Creating fat16 boot partition filesystem ..."
+# Create a fat16 filesystem on the first partition
+echo "Creating fat16 boot partition filesystem..."
 mkfs.vfat -F 16 -n "$bootlabel" $part1
 sleep 1
 
-# ... and the ext4 filesystem at the second partition.
-echo "Creating ext4 root partition filesystem ..."
+# Create an ext4 filesystem on the second partition
+echo "Creating ext4 root partition filesystem..."
 mkfs.ext4 -L "$rootlabel" $part2
 sleep 1
 
-# Print out the partition table.
+# Print out the partition table
+echo "New partition table:"
 fdisk -l $device
 
+#
+# Install Arch Linux
+#
+
+echo "Preparing Arch Linux install..."
+
 # Find or download the bootloader tarball
-echo "Looking for a bootloader tarball ..."
+echo "Looking for bootloader..."
 
 # Look for a bootloader archive in the same directory as the script
 bootloader="${SCRIPT_PATH}/BeagleBone-bootloader.tar.gz"
 
 if [ ! -f $bootloader ]; then
   # Download the arch-beaglebone bootloader tarball
-  echo "Downloading bootloader ..."
-  wget http://archlinuxarm.org/os/omap/BeagleBone-bootloader.tar.gz --directory-prefix=/tmp/bone
+  echo "Downloading bootloader..."
+  wget http://archlinuxarm.org/os/omap/BeagleBone-bootloader.tar.gz --directory-prefix="$tmp"
   sleep 1
 
-  bootloader="/tmp/bone/BeagleBone-bootloader.tar.gz"
+  bootloader="${tmp}/BeagleBone-bootloader.tar.gz"
 fi
 
 echo "Using bootloader tarball ${bootloader}"
 
 # Find or download the rootfs tarball
-echo "Looking for a root filesystem tarball ..."
+echo "Looking for root filesystem..."
 
 # Look for a rootfs archive in the same directory as the script
 rootfs="${SCRIPT_PATH}/ArchLinuxARM-am33x-latest.tar.gz"
 
 if [ ! -f $rootfs ]; then
   # Download the latest arch root filesystem tarball
-  echo "Downloading latest root filesystem ..."
-  wget http://archlinuxarm.org/os/ArchLinuxARM-am33x-latest.tar.gz --directory-prefix=/tmp/bone
+  echo "Downloading latest root filesystem..."
+  wget http://archlinuxarm.org/os/ArchLinuxARM-am33x-latest.tar.gz --directory-prefix="$tmp"
   sleep 1
   
-  rootfs="/tmp/bone/ArchLinuxARM-am33x-latest.tar.gz"
+  rootfs="${tmp}/bone/ArchLinuxARM-am33x-latest.tar.gz"
 fi
 
 echo "Using root filesystem tarball ${rootfs}"
 
-# ... create new directories to mount "boot" and "rootfs", ...
-mkdir /tmp/bone/{boot,root}
+# Create tmp directories to mount "boot" and "rootfs"
+mkdir $tmp/bone/{boot,root}
 
-# ... mount the partitions, ...
-mount $part1 /tmp/bone/boot
-mount $part2 /tmp/bone/root
+# Mount the partitions to the tmp dirs
+mount $part1 "${tmp}/bone/boot"
+mount $part2 "${tmp}/bone/root"
 
-# ... extract the tarballs to the disk partitions, ...
-echo "Extracting files to disk ..."
-tar -xvf $bootloader --no-same-owner -C /tmp/bone/boot
-tar -xf $rootfs -C /tmp/bone/root
+# Extract the tarballs directly to the mounted partitions
+echo "Extracting files to disk..."
+tar -xvf $bootloader --no-same-owner -C "${tmp}/bone/boot"
+tar -xf $rootfs -C "${tmp}/bone/root"
 
-# ... copy the boot image to the boot partition, ...
-echo "Copying Boot Image ..."
-cp /tmp/bone/root/boot/zImage /tmp/bone/boot
+# Copy the boot image to the boot partition
+echo "Copying Boot Image..."
+cp "${tmp}/bone/root/boot/zImage" "${tmp}/bone/boot"
 
-# ... make sure the write buffer has been commited to disk ...
-echo "Synching ..."
-sync
+# Make sure the write buffer has been commited to disk
+echo "Synching..."
+sync ; sleep 1 ; sync
 
-# ... and then unmount the partitions.
-umount /tmp/bone/boot
-umount /tmp/bone/root
+# Unmount the partitions
+umount "${tmp}/bone/boot"
+umount "${tmp}/bone/root"
 
-cleanUp
+# Sweep the floors
+if [[ $keep -eq 0 ]]; then
+  cleanUp
+fi
 
+# Huzzah!
 echo "Done!"
 
-# Make eMMC partition labels distinct
+# Print reboot instructions after flashing the eMMC
 if [[ $mmc -eq 1 ]]; then
   echo "$MMC_REBOOT"
 fi
