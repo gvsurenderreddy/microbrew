@@ -1,0 +1,11 @@
+Description='OpenVPN tuntap connection'
+Interface=tap0
+Connection=tuntap
+Mode='tap'
+User='nobody'
+Group='nobody'
+
+## Example IP configuration
+#IP=static
+#Address='10.10.1.2/16'
+ExecUpPost='/usr/sbin/ip link set tap0 promisc on mtu 1492'

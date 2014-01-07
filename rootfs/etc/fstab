@@ -1,0 +1,6 @@
+# 
+# /etc/fstab: static file system information
+#
+# <file system>	<dir>	<type>	<options>	<dump>	<pass>
+//x.x.x.x/path/to/media /mnt/media cifs defaults,noauto,x-systemd.automount,x-systemd.device-timeout=60,rw,uid=media,gid=media,nosetuids,noperm,sec=ntlm,username=CHANGEME,password=CHANGEME 0 0
+

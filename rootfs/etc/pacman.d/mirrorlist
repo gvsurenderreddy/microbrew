@@ -1,0 +1,68 @@
+#
+# Arch Linux ARM repository mirrorlist
+# Generated on 2013-12-27
+#
+
+## Geo-IP based mirror selection and load balancing
+Server = http://mirror.archlinuxarm.org/armv7h/$repo
+
+### Mirrors by country
+
+### Brazil
+## Sao Paulo
+# Server = http://br.mirror.archlinuxarm.org/armv7h/$repo
+
+### Canada
+## Montreal
+# Server = http://ca.mirror.archlinuxarm.org/armv7h/$repo
+
+### France
+## Ain
+# Server = http://fr.mirror.archlinuxarm.org/armv7h/$repo
+
+### Germany
+## Aachen
+# Server = http://de3.mirror.archlinuxarm.org/armv7h/$repo
+## Berlin
+# Server = http://de.mirror.archlinuxarm.org/armv7h/$repo
+## Coburg
+# Server = http://de4.mirror.archlinuxarm.org/armv7h/$repo
+## Falkenstein
+# Server = http://eu.mirror.archlinuxarm.org/armv7h/$repo
+# Server = http://de5.mirror.archlinuxarm.org/armv7h/$repo
+## Nuremberg
+# Server = http://de2.mirror.archlinuxarm.org/armv7h/$repo
+
+### Italy
+## Turin
+# Server = http://it.mirror.archlinuxarm.org/armv7h/$repo
+
+### Netherlands
+## Haarlem
+# Server = http://nl.mirror.archlinuxarm.org/armv7h/$repo
+
+### Norway
+## Trondheim
+# Server = http://no.mirror.archlinuxarm.org/armv7h/$repo
+
+### Poland
+## Gdansk
+# Server = http://pl.mirror.archlinuxarm.org/armv7h/$repo
+
+### Taiwan
+## New Taipei City
+# Server = http://tw.mirror.archlinuxarm.org/armv7h/$repo
+
+### United States
+## Delaware
+# Server = http://de.us.mirror.archlinuxarm.org/armv7h/$repo
+## California
+# Server = http://ca.us.mirror.archlinuxarm.org/armv7h/$repo
+## Michigan
+# Server = http://mi.us.mirror.archlinuxarm.org/armv7h/$repo
+## New York
+# Server = http://us.mirror.archlinuxarm.org/armv7h/$repo
+## Virginia
+# Server = http://va.us.mirror.archlinuxarm.org/armv7h/$repo
+## Washington
+# Server = http://wa.us.mirror.archlinuxarm.org/armv7h/$repo

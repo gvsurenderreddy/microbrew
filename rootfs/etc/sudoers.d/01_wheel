@@ -1,0 +1,2 @@
+# Give full superuser priveleges to all users in wheel group
+%wheel ALL=(ALL)  ALL

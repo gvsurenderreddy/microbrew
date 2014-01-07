@@ -1,0 +1,13 @@
+Description="OpenVPN Bridge connection"
+Interface=br0
+Connection=bridge
+BindsToInterfaces=(eth0 tap0)
+#IP=dhcp
+IP=static
+Address=('10.0.0.10/24')
+#Routes=('192.168.0.0/24 via 192.168.1.2')
+Gateway='10.0.0.1'
+DNS=('8.8.8.8' '8.8.4.4')
+## Ignore (R)STP and immediately activate the bridge
+#SkipForwardingDelay=yes
+ExecUpPost='/usr/sbin/ip link set eth0 promisc on mtu 1492'

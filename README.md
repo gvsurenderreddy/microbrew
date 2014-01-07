@@ -1,4 +1,4 @@
 microbrew
 =========
 
-Beaglebone Black + Arch Linux bridged VPN and media server
+Beaglebone Black + Arch Linux: bridged VPN and home media server
