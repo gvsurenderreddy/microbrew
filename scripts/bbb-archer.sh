@@ -144,7 +144,7 @@ n
 p
 1
 
-+16M
++64M
 n
 p
 2
@@ -222,7 +222,7 @@ do
          
          shift
          ;;
-      --emmc|--mmc|-m)
+      --emmc|--mmc|-e)
          mmc=1
          shift
          ;;
@@ -259,7 +259,7 @@ fi
 # Device format
 #
 
-# Unmount all mounted partitions belonging to the specified device
+# Unmount all mounted partitions belinging to the specified device
 echo "Unmounting partitions..."
 for partition in $(fdisk -l $device|awk '/^\/dev\// {print $1}')
 do
@@ -294,6 +294,7 @@ if [[ $mmc -ne 1 ]]; then
   tr "\000" "\377" < /dev/zero | dd bs=1024 count=1024 of=$device
 
   # Make sure the disk is done writing
+  echo "Synching..."
   sync ; sleep 1 ; sync
 
   # Repartition the disk
@@ -372,8 +373,8 @@ tar -xvf $bootloader --no-same-owner -C "${tmp}/boot"
 tar -xf $rootfs -C "${tmp}/root"
 
 # Copy the boot image to the boot partition
-echo "Copying Boot Image..."
-cp "${tmp}/root/boot/zImage" "${tmp}/boot"
+# echo "Copying Boot Image..."
+# cp "${tmp}/root/boot/zImage" "${tmp}/boot"
 
 # Make sure the write buffer has been commited to disk
 echo "Synching..."
