@@ -1,4 +1,4 @@
-#! /bin/sh
+#! /bin/bash
 
 # Copyright (c) 2014 Ian White <ian@impressiver.com>
 # License: [MIT](http://opensource.org/licenses/MIT)
